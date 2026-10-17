@@ -1,0 +1,14 @@
+# Buildozer / python-for-android build output
+.buildozer/
+bin/
+build.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Local data created when running on Termux/PC
+data.json
+data.json.tmp
+data.json.bad
+error.log

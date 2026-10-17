@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Pinned to Ubuntu 24.04: the ubuntu-latest label moves to Ubuntu 26.04 on October 19, 2026, and the
+    # Buildozer / python-for-android toolchain may not work on the new image. Switch to ubuntu-26.04 only after testing.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf automake libtool libtool-bin libltdl-dev pkg-config \
+            zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev build-essential ccache
+
+      - name: Install Buildozer
+        run: |
+          pip install --upgrade pip
+          pip install buildozer "cython==0.29.36" virtualenv
+
+      - name: Cache build output (speeds up later builds)
+        uses: actions/cache@v5
+        with:
+          path: |
+            .buildozer
+            ~/.buildozer
+          key: buildozer-v2-${{ hashFiles('buildozer.spec') }}
+
+      - name: Build
+        run: |
+          set -o pipefail
+          buildozer -v android debug 2>&1 | tee build.log
+
+      - name: Show the error context (60 lines before the failure)
+        if: failure()
+        run: |
+          if grep -q "# Command failed" build.log; then
+            grep -m1 -B 60 "# Command failed" build.log
+          else
+            tail -n 60 build.log
+          fi
+
+      - name: Upload the full log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 3
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: IFTTW-APK
+          path: bin/*.apk
+          if-no-files-found: error
